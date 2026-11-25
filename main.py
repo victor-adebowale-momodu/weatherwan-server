@@ -27,8 +27,9 @@ def get_conn() -> sqlite3.Connection:
 
 
 def compute_sha256(weights: list[float]) -> str:
-    """Compute SHA-256 over raw little-endian IEEE-754 float32 bytes."""
-    raw_bytes = struct.pack(f"<{len(weights)}f", *weights)
+    """Compute SHA-256 over 5-decimal quantized int32 values to avoid JSON float ULP drift."""
+    q = np.rint(np.array(weights, dtype=np.float64) * 100000.0).astype(np.int32)
+    raw_bytes = struct.pack(f"<{len(q)}i", *q.tolist())
     return hashlib.sha256(raw_bytes).hexdigest()
 
 
