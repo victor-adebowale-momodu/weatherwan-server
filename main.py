@@ -1,4 +1,3 @@
-from contextlib import asynccontextmanager
 import hashlib
 import json
 import os
@@ -6,9 +5,10 @@ import sqlite3
 import struct
 import threading
 import time
+from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
 import numpy as np
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 # Must match ESP32 MLP: (6->12) + (3->6) + (18->12) + (12->3) = 375 floats
@@ -80,7 +80,9 @@ def init_db() -> None:
             row = conn.execute("SELECT round FROM fl_meta WHERE id = 1").fetchone()
             if row is None:
                 rng = np.random.default_rng(seed=42)
-                init_w = rng.normal(0.0, 0.1, size=NUM_WEIGHTS).astype(np.float32).tolist()
+                init_w = (
+                    rng.normal(0.0, 0.1, size=NUM_WEIGHTS).astype(np.float32).tolist()
+                )
                 conn.execute(
                     "INSERT INTO fl_meta (id, round, global_weights) VALUES (1, 0, ?)",
                     (json.dumps(init_w),),
@@ -130,7 +132,9 @@ def health():
         conn = get_conn()
         try:
             meta = conn.execute("SELECT round FROM fl_meta WHERE id = 1").fetchone()
-            pending = conn.execute("SELECT COUNT(*) AS c FROM pending_updates").fetchone()
+            pending = conn.execute(
+                "SELECT COUNT(*) AS c FROM pending_updates"
+            ).fetchone()
             return {
                 "status": "ok",
                 "current_round": meta["round"],
@@ -147,7 +151,9 @@ def get_version():
         conn = get_conn()
         try:
             meta = conn.execute("SELECT round FROM fl_meta WHERE id = 1").fetchone()
-            pending = conn.execute("SELECT COUNT(*) AS c FROM pending_updates").fetchone()
+            pending = conn.execute(
+                "SELECT COUNT(*) AS c FROM pending_updates"
+            ).fetchone()
             return {"round": meta["round"], "pending_count": pending["c"]}
         finally:
             conn.close()
@@ -158,7 +164,9 @@ def get_global_model():
     with db_lock:
         conn = get_conn()
         try:
-            meta = conn.execute("SELECT round, global_weights FROM fl_meta WHERE id = 1").fetchone()
+            meta = conn.execute(
+                "SELECT round, global_weights FROM fl_meta WHERE id = 1"
+            ).fetchone()
             weights = json.loads(meta["global_weights"])
             return {
                 "round": meta["round"],
@@ -221,7 +229,9 @@ def submit_update(update: NodeUpdate):
 
                 for r in rows:
                     factor = r["num_samples"] / total_samples
-                    new_weights += factor * np.array(json.loads(r["weights"]), dtype=np.float32)
+                    new_weights += factor * np.array(
+                        json.loads(r["weights"]), dtype=np.float32
+                    )
                     weighted_loss += factor * r["local_loss"]
                     participants.append(r["node_id"])
 
@@ -230,7 +240,13 @@ def submit_update(update: NodeUpdate):
                     INSERT OR REPLACE INTO round_history (round, participants, total_samples, weighted_loss, timestamp)
                     VALUES (?, ?, ?, ?, ?)
                     """,
-                    (current_round, ",".join(participants), total_samples, float(weighted_loss), time.time()),
+                    (
+                        current_round,
+                        ",".join(participants),
+                        total_samples,
+                        float(weighted_loss),
+                        time.time(),
+                    ),
                 )
                 current_round += 1
                 conn.execute(
@@ -262,9 +278,16 @@ def receive_weather_packet(pkt: TelemetryPacket):
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    pkt.node_id, pkt.temperature, pkt.humidity, pkt.pressure,
-                    pkt.irradiance, pkt.v_bat, pkt.v_uc, pkt.v_pv,
-                    pkt.used_ultracap, time.time(),
+                    pkt.node_id,
+                    pkt.temperature,
+                    pkt.humidity,
+                    pkt.pressure,
+                    pkt.irradiance,
+                    pkt.v_bat,
+                    pkt.v_uc,
+                    pkt.v_pv,
+                    pkt.used_ultracap,
+                    time.time(),
                 ),
             )
             conn.commit()
